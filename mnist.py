@@ -13,7 +13,7 @@ y_train = to_categorical(y_train, num_classes=10)
 y_test = to_categorical(y_test, num_classes=10)
 
 def subsample(n, labels):
-    return np.concatenate([np.random.choice(np.where(labels == c)[0], n // 10) for c in range(10)], axis=0)
+    return np.concatenate([np.random.choice(np.where(labels == c)[0], n // 10, replace=False) for c in range(10)], axis=0)
 
 def subsample_train(n):
     return subsample(n, train_labels)
