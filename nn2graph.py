@@ -2,6 +2,7 @@ import numpy as np
 import graph_tool as gt
 import tensorflow.keras.backend as K
 from tensorflow.keras.layers import Dense
+from functools import reduce
 
 def dense_model_to_graph(model):
     input_layer = model.layers[0]
@@ -41,21 +42,19 @@ def dense_activations_to_graph(model, x_in, thresh=1.0E-5):
           for layer, output in zip(dense_layers, outputs)]
     # 1. apply masks to outputs
     # 2. reshape/flatten masks from (batch, d, k) to (batch, d*k)
+    def apply_mask(W, mask):
+        return (W*mask).reshape((-1, np.prod(W.shape[1:])))
     # 3. concatenate all masked outputs together to get full edge list
-    Ws_masked = np.concatenate([(W*mask).reshape((-1, np.prod(W.shape[1:]))) for W, mask in zip(Ws, masks)], axis=1)
+    Ws_masked = np.concatenate([apply_mask(W, mask) for W, mask in zip(Ws, masks)], axis=1)
     # create mask over final outputs for graph-tool edge filter
     edge_masks = ~np.isclose(Ws_masked, 0.0, atol=thresh)
     # initialize graph views for all outputs in batch
     Gs = [gt.GraphView(G, efilt=G.new_ep('bool', vals=mask)) for mask in edge_masks]
-    # add degree property to graph
+    layer_sizes = [x_in.shape[-1]] + [layer.units for layer in dense_layers]
+    labels = reduce(lambda cum, n: cum + n, [[i]*size for i, size in enumerate(layer_sizes)])
+    # add degree and layer properties to graph
     for g, acts in zip(Gs, Ws_masked):
         g.ep['activation'] = g.new_ep('float', vals=acts)
         g.vp['degree'] = g.degree_property_map('total', weight=g.ep['activation'])
-    # add layer labels to graph
-    layer_sizes = [x_in.shape[-1]] + [layer.units for layer in dense_layers]
-    for g in Gs:
-        labels = []
-        for i, size in enumerate(layer_sizes):
-            labels += [i]*size
         g.vp['layer'] = g.new_vp('int', labels)
     return G, Gs
