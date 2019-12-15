@@ -52,9 +52,11 @@ def dense_activations_to_graph(model, x_in, thresh=1.0E-5):
     Gs = [gt.GraphView(G, efilt=G.new_ep('bool', vals=mask)) for mask in edge_masks]
     layer_sizes = [x_in.shape[-1]] + [layer.units for layer in dense_layers]
     labels = reduce(lambda cum, n: cum + n, [[i]*size for i, size in enumerate(layer_sizes)])
+    activations = np.concatenate(outputs, axis=1).squeeze()
     # add degree and layer properties to graph
-    for g, acts in zip(Gs, Ws_masked):
+    for i, (g, acts) in enumerate(zip(Gs, Ws_masked)):
         g.ep['activation'] = g.new_ep('float', vals=acts)
+        g.vp['activation'] = g.new_vp('float', vals=activations[i])
         g.vp['degree'] = g.degree_property_map('total', weight=g.ep['activation'])
         g.vp['layer'] = g.new_vp('int', labels)
     return G, Gs
